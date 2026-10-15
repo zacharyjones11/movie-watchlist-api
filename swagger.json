@@ -1,0 +1,1141 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Movie Watchlist API",
+    "version": "1.0.0",
+    "description": "CSE 341 Project 2 — save movies and write reviews. Lesson 5 endpoints are public; OAuth login and route protection will be added in a later lesson. Do not store private information yet. Create a movie before posting a review, using the returned movie _id as movieId. Requests and responses use JSON. PUT requires every input field."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "The server hosting this documentation"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Movies",
+      "description": "Movie details and watchlist status"
+    },
+    {
+      "name": "Reviews",
+      "description": "Reviews linked to existing movies"
+    },
+    {
+      "name": "System",
+      "description": "Service information and database health"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getInfo",
+        "summary": "API information",
+        "responses": {
+          "200": {
+            "description": "API name, links, and authentication stage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "documentation": {
+                      "type": "string"
+                    },
+                    "movies": {
+                      "type": "string"
+                    },
+                    "reviews": {
+                      "type": "string"
+                    },
+                    "authentication": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getHealth",
+        "summary": "Check MongoDB connectivity",
+        "responses": {
+          "200": {
+            "description": "Database responds to ping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/movies": {
+      "get": {
+        "tags": [
+          "Movies"
+        ],
+        "operationId": "listMovies",
+        "summary": "List movies",
+        "description": "Returns an array ordered by document ID. Unknown query parameters are rejected.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          },
+          {
+            "name": "watchStatus",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "want-to-watch",
+                "watching",
+                "watched"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching documents (empty array if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Movie"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Movies"
+        ],
+        "operationId": "createMovie",
+        "summary": "Create a movie",
+        "description": "All input fields are required. Extra fields are rejected. Timestamps and the ID are generated by the server.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MovieInput"
+              },
+              "example": {
+                "title": "The Incredibles",
+                "releaseYear": 2004,
+                "genre": "Animation",
+                "director": "Brad Bird",
+                "runtimeMinutes": 115,
+                "contentRating": "PG",
+                "synopsis": "A family of superheroes returns to action.",
+                "watchStatus": "want-to-watch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created document",
+            "headers": {
+              "Location": {
+                "description": "Relative URL of the created document",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 100 KB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/movies/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "MongoDB document ID returned by POST or GET.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Movies"
+        ],
+        "operationId": "getMovie",
+        "summary": "Get a movie by ID",
+        "responses": {
+          "200": {
+            "description": "Requested document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Movies"
+        ],
+        "operationId": "updateMovie",
+        "summary": "Update a movie",
+        "description": "Send all input fields, including unchanged fields. The original ID and createdAt are preserved; updatedAt is set by the server. Does not create a missing document.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MovieInput"
+              },
+              "example": {
+                "title": "The Incredibles",
+                "releaseYear": 2004,
+                "genre": "Animation",
+                "director": "Brad Bird",
+                "runtimeMinutes": 115,
+                "contentRating": "PG",
+                "synopsis": "A family of superheroes returns to action.",
+                "watchStatus": "want-to-watch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movie"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or referenced movie not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 100 KB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Movies"
+        ],
+        "operationId": "deleteMovie",
+        "summary": "Delete a movie",
+        "description": "Delete associated reviews first. A movie with reviews returns 409.",
+        "responses": {
+          "204": {
+            "description": "Deleted successfully; no response body"
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Movie still has reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviews": {
+      "get": {
+        "tags": [
+          "Reviews"
+        ],
+        "operationId": "listReviews",
+        "summary": "List reviews",
+        "description": "Returns an array ordered by document ID. Unknown query parameters are rejected.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          },
+          {
+            "name": "movieId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching documents (empty array if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Review"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reviews"
+        ],
+        "operationId": "createReview",
+        "summary": "Create a review",
+        "description": "All input fields are required. Extra fields are rejected. Timestamps and the ID are generated by the server.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput"
+              },
+              "example": {
+                "movieId": "507f1f77bcf86cd799439011",
+                "reviewerName": "Zach",
+                "rating": 9,
+                "reviewText": "A fun story with memorable characters.",
+                "watchedOn": "2026-10-15",
+                "containsSpoilers": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created document",
+            "headers": {
+              "Location": {
+                "description": "Relative URL of the created document",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Referenced movie does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 100 KB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reviews/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "MongoDB document ID returned by POST or GET.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Reviews"
+        ],
+        "operationId": "getReview",
+        "summary": "Get a review by ID",
+        "responses": {
+          "200": {
+            "description": "Requested document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Reviews"
+        ],
+        "operationId": "updateReview",
+        "summary": "Update a review",
+        "description": "Send all input fields, including unchanged fields. The original ID and createdAt are preserved; updatedAt is set by the server. Does not create a missing document.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput"
+              },
+              "example": {
+                "movieId": "507f1f77bcf86cd799439011",
+                "reviewerName": "Zach",
+                "rating": 9,
+                "reviewText": "A fun story with memorable characters.",
+                "watchedOn": "2026-10-15",
+                "containsSpoilers": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or referenced movie not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 100 KB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Reviews"
+        ],
+        "operationId": "deleteReview",
+        "summary": "Delete a review",
+        "description": "Permanently removes this review.",
+        "responses": {
+          "204": {
+            "description": "Deleted successfully; no response body"
+          },
+          "400": {
+            "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server or database error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MovieInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "releaseYear": {
+            "type": "integer",
+            "minimum": 1888,
+            "maximum": 2100
+          },
+          "genre": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "director": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "runtimeMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "contentRating": {
+            "type": "string",
+            "enum": [
+              "G",
+              "PG",
+              "PG-13",
+              "R",
+              "NC-17",
+              "NR"
+            ]
+          },
+          "synopsis": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "watchStatus": {
+            "type": "string",
+            "enum": [
+              "want-to-watch",
+              "watching",
+              "watched"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "releaseYear",
+          "genre",
+          "director",
+          "runtimeMinutes",
+          "contentRating",
+          "synopsis",
+          "watchStatus"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "title": "The Incredibles",
+          "releaseYear": 2004,
+          "genre": "Animation",
+          "director": "Brad Bird",
+          "runtimeMinutes": 115,
+          "contentRating": "PG",
+          "synopsis": "A family of superheroes returns to action.",
+          "watchStatus": "want-to-watch"
+        }
+      },
+      "ReviewInput": {
+        "type": "object",
+        "properties": {
+          "movieId": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "reviewerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "reviewText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "watchedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "containsSpoilers": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "movieId",
+          "reviewerName",
+          "rating",
+          "reviewText",
+          "watchedOn",
+          "containsSpoilers"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "movieId": "507f1f77bcf86cd799439011",
+          "reviewerName": "Zach",
+          "rating": 9,
+          "reviewText": "A fun story with memorable characters.",
+          "watchedOn": "2026-10-15",
+          "containsSpoilers": false
+        }
+      },
+      "Movie": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "releaseYear": {
+            "type": "integer",
+            "minimum": 1888,
+            "maximum": 2100
+          },
+          "genre": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "director": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "runtimeMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "contentRating": {
+            "type": "string",
+            "enum": [
+              "G",
+              "PG",
+              "PG-13",
+              "R",
+              "NC-17",
+              "NR"
+            ]
+          },
+          "synopsis": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "watchStatus": {
+            "type": "string",
+            "enum": [
+              "want-to-watch",
+              "watching",
+              "watched"
+            ]
+          },
+          "_id": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "title",
+          "releaseYear",
+          "genre",
+          "director",
+          "runtimeMinutes",
+          "contentRating",
+          "synopsis",
+          "watchStatus",
+          "_id",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "title": "The Incredibles",
+          "releaseYear": 2004,
+          "genre": "Animation",
+          "director": "Brad Bird",
+          "runtimeMinutes": 115,
+          "contentRating": "PG",
+          "synopsis": "A family of superheroes returns to action.",
+          "watchStatus": "want-to-watch",
+          "_id": "507f1f77bcf86cd799439011",
+          "createdAt": "2026-10-15T12:00:00.000Z",
+          "updatedAt": "2026-10-15T12:00:00.000Z"
+        }
+      },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "movieId": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "reviewerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "reviewText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "watchedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "containsSpoilers": {
+            "type": "boolean"
+          },
+          "_id": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        },
+        "required": [
+          "movieId",
+          "reviewerName",
+          "rating",
+          "reviewText",
+          "watchedOn",
+          "containsSpoilers",
+          "_id",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "movieId": "507f1f77bcf86cd799439011",
+          "reviewerName": "Zach",
+          "rating": 9,
+          "reviewText": "A fun story with memorable characters.",
+          "watchedOn": "2026-10-15",
+          "containsSpoilers": false,
+          "_id": "507f1f77bcf86cd799439011",
+          "createdAt": "2026-10-15T12:00:00.000Z",
+          "updatedAt": "2026-10-15T12:00:00.000Z"
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "field",
+                "message"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "database"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unavailable"
+            ]
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

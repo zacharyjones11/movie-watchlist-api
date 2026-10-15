@@ -1,0 +1,27 @@
+{
+  "name": "movie-watchlist-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CSE 341 Project 2: movies and personal movie reviews",
+  "main": "server.js",
+  "engines": { "node": "22.x" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "docs": "node scripts/generate-swagger.js",
+    "test": "node --test --test-concurrency=1"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "mongodb": "^6.20.0",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.24.6"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.2.1",
+    "supertest": "^7.1.4"
+  }
+}

@@ -1,0 +1,96 @@
+### VS Code REST Client: replace this URL after creating your Render service.
+@local = http://localhost:8081
+@render = https://YOUR-SERVICE-NAME.onrender.com
+@baseUrl = {{local}}
+# Switch to @baseUrl = {{render}} to test the deployed API.
+
+### Local MongoDB health
+GET {{local}}/health
+
+### Render MongoDB health
+GET {{render}}/health
+
+### GET all movies
+GET {{baseUrl}}/movies
+
+### POST movie. Run this named request before the ID-based requests.
+# @name createMovie
+POST {{baseUrl}}/movies
+Content-Type: application/json
+
+{
+  "title": "The Incredibles",
+  "releaseYear": 2004,
+  "genre": "Animation",
+  "director": "Brad Bird",
+  "runtimeMinutes": 115,
+  "contentRating": "PG",
+  "synopsis": "A family of superheroes returns to action.",
+  "watchStatus": "want-to-watch"
+}
+
+### GET movie by ID (uses the POST response)
+GET {{baseUrl}}/movies/{{createMovie.response.body.$._id}}
+
+### PUT complete movie input
+PUT {{baseUrl}}/movies/{{createMovie.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "title": "The Incredibles",
+  "releaseYear": 2004,
+  "genre": "Animation",
+  "director": "Brad Bird",
+  "runtimeMinutes": 115,
+  "contentRating": "PG",
+  "synopsis": "A family of superheroes returns to action.",
+  "watchStatus": "watched"
+}
+
+### GET all reviews
+GET {{baseUrl}}/reviews
+
+### POST review for the created movie
+# @name createReview
+POST {{baseUrl}}/reviews
+Content-Type: application/json
+
+{
+  "movieId": "{{createMovie.response.body.$._id}}",
+  "reviewerName": "Zach",
+  "rating": 9,
+  "reviewText": "A fun story with memorable characters.",
+  "watchedOn": "2026-10-15",
+  "containsSpoilers": false
+}
+
+### GET review by ID
+GET {{baseUrl}}/reviews/{{createReview.response.body.$._id}}
+
+### GET reviews for one movie
+GET {{baseUrl}}/reviews?movieId={{createMovie.response.body.$._id}}
+
+### PUT complete review input
+PUT {{baseUrl}}/reviews/{{createReview.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "movieId": "{{createMovie.response.body.$._id}}",
+  "reviewerName": "Zach",
+  "rating": 8,
+  "reviewText": "Still a fun movie on a second watch.",
+  "watchedOn": "2026-10-15",
+  "containsSpoilers": false
+}
+
+### DELETE review first
+DELETE {{baseUrl}}/reviews/{{createReview.response.body.$._id}}
+
+### DELETE movie (returns 409 if it still has reviews)
+DELETE {{baseUrl}}/movies/{{createMovie.response.body.$._id}}
+
+### Invalid movie example: expect 400 and field-level details
+POST {{baseUrl}}/movies
+Content-Type: application/json
+
+{ "title": "Missing required fields" }
