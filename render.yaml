@@ -13,3 +13,9 @@ services:
         sync: false
       - key: MONGODB_DB_NAME
         value: movie_watchlist
+      - key: SESSION_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false

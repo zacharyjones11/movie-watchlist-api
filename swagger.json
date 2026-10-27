@@ -3,7 +3,7 @@
   "info": {
     "title": "Movie Watchlist API",
     "version": "1.0.0",
-    "description": "CSE 341 Project 2 — save movies and write reviews. Lesson 5 endpoints are public; OAuth login and route protection will be added in a later lesson. Do not store private information yet. Create a movie before posting a review, using the returned movie _id as movieId. Requests and responses use JSON. PUT requires every input field."
+    "description": "CSE 341 Project 2 — sign in with GitHub, then manage your private movie watchlist and reviews. Open /auth/github in a browser to sign in. Movie and review routes require your session; POST, PUT, and DELETE also require the X-CSRF-Token from GET /auth/me. Users can only see and change their own documents. Create a movie before posting a review, using its returned _id as movieId. Requests and responses use JSON. PUT requires every input field."
   },
   "servers": [
     {
@@ -12,6 +12,10 @@
     }
   ],
   "tags": [
+    {
+      "name": "Authentication",
+      "description": "GitHub OAuth sign-in, current user, and logout"
+    },
     {
       "name": "Movies",
       "description": "Movie details and watchlist status"
@@ -35,7 +39,7 @@
         "summary": "API information",
         "responses": {
           "200": {
-            "description": "API name, links, and authentication stage",
+            "description": "API name, links, and sign-in instructions",
             "content": {
               "application/json": {
                 "schema": {
@@ -95,6 +99,166 @@
         }
       }
     },
+    "/auth/github": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "startGithubLogin",
+        "summary": "Sign in with GitHub",
+        "description": "Open this route in a browser. On successful sign-in, GitHub returns to the callback and the API redirects to Swagger UI. OAuth state is validated to prevent login CSRF.",
+        "responses": {
+          "302": {
+            "description": "Redirect to GitHub authorization"
+          },
+          "503": {
+            "description": "GitHub OAuth is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/github/callback": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "githubCallback",
+        "summary": "GitHub OAuth callback",
+        "description": "Completes the authorization-code exchange, upserts the GitHub user, rotates the session, and redirects to Swagger UI.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Sign-in succeeded; redirects to /api-docs/"
+          },
+          "400": {
+            "description": "Invalid or expired OAuth state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in was cancelled or rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Sign-in could not be completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "getCurrentUser",
+        "summary": "Get the signed-in user and CSRF token",
+        "description": "Requires a signed-in browser session. Copy csrfToken into the X-CSRF-Token authorization field before running POST, PUT, or DELETE requests in Swagger.",
+        "responses": {
+          "200": {
+            "description": "Signed-in GitHub profile and session CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "logout",
+        "summary": "Sign out",
+        "description": "Requires a signed-in session and the X-CSRF-Token returned by GET /auth/me.",
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session deleted and cookie cleared"
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/movies": {
       "get": {
         "tags": [
@@ -102,7 +266,7 @@
         ],
         "operationId": "listMovies",
         "summary": "List movies",
-        "description": "Returns an array ordered by document ID. Unknown query parameters are rejected.",
+        "description": "Requires GitHub sign-in. The authenticated session only sees this user's documents. Returns an array ordered by document ID. Unknown query parameters are rejected.",
         "parameters": [
           {
             "name": "limit",
@@ -161,6 +325,16 @@
               }
             }
           },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server or database error",
             "content": {
@@ -179,7 +353,7 @@
         ],
         "operationId": "createMovie",
         "summary": "Create a movie",
-        "description": "All input fields are required. Extra fields are rejected. Timestamps and the ID are generated by the server.",
+        "description": "Requires GitHub sign-in and the X-CSRF-Token returned by GET /auth/me. The server sets userId; all input fields are required and extra fields are rejected.",
         "requestBody": {
           "required": true,
           "content": {
@@ -200,6 +374,11 @@
             }
           }
         },
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
         "responses": {
           "201": {
             "description": "Created document",
@@ -221,6 +400,26 @@
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
             "content": {
               "application/json": {
                 "schema": {
@@ -271,6 +470,7 @@
         ],
         "operationId": "getMovie",
         "summary": "Get a movie by ID",
+        "description": "Requires GitHub sign-in. Documents owned by another user are returned as not found.",
         "responses": {
           "200": {
             "description": "Requested document",
@@ -284,6 +484,16 @@
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
             "content": {
               "application/json": {
                 "schema": {
@@ -320,7 +530,7 @@
         ],
         "operationId": "updateMovie",
         "summary": "Update a movie",
-        "description": "Send all input fields, including unchanged fields. The original ID and createdAt are preserved; updatedAt is set by the server. Does not create a missing document.",
+        "description": "Requires GitHub sign-in and the X-CSRF-Token returned by GET /auth/me. Send all input fields, including unchanged fields. The original ID, owner, and createdAt are preserved; updatedAt is set by the server. Does not create a missing document.",
         "requestBody": {
           "required": true,
           "content": {
@@ -341,6 +551,11 @@
             }
           }
         },
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Updated document",
@@ -354,6 +569,26 @@
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
             "content": {
               "application/json": {
                 "schema": {
@@ -400,13 +635,38 @@
         ],
         "operationId": "deleteMovie",
         "summary": "Delete a movie",
-        "description": "Delete associated reviews first. A movie with reviews returns 409.",
+        "description": "Requires GitHub sign-in and the X-CSRF-Token returned by GET /auth/me. Delete your associated reviews first. A movie with reviews returns 409.",
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
         "responses": {
           "204": {
             "description": "Deleted successfully; no response body"
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
             "content": {
               "application/json": {
                 "schema": {
@@ -455,7 +715,7 @@
         ],
         "operationId": "listReviews",
         "summary": "List reviews",
-        "description": "Returns an array ordered by document ID. Unknown query parameters are rejected.",
+        "description": "Requires GitHub sign-in. The authenticated session only sees this user's documents. Returns an array ordered by document ID. Unknown query parameters are rejected.",
         "parameters": [
           {
             "name": "limit",
@@ -510,6 +770,16 @@
               }
             }
           },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Unexpected server or database error",
             "content": {
@@ -528,7 +798,7 @@
         ],
         "operationId": "createReview",
         "summary": "Create a review",
-        "description": "All input fields are required. Extra fields are rejected. Timestamps and the ID are generated by the server.",
+        "description": "Requires GitHub sign-in and the X-CSRF-Token returned by GET /auth/me. The server sets userId; all input fields are required and extra fields are rejected.",
         "requestBody": {
           "required": true,
           "content": {
@@ -547,6 +817,11 @@
             }
           }
         },
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
         "responses": {
           "201": {
             "description": "Created document",
@@ -576,8 +851,28 @@
               }
             }
           },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Referenced movie does not exist",
+            "description": "Referenced movie does not exist or is not owned by you",
             "content": {
               "application/json": {
                 "schema": {
@@ -628,6 +923,7 @@
         ],
         "operationId": "getReview",
         "summary": "Get a review by ID",
+        "description": "Requires GitHub sign-in. Documents owned by another user are returned as not found.",
         "responses": {
           "200": {
             "description": "Requested document",
@@ -641,6 +937,16 @@
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
             "content": {
               "application/json": {
                 "schema": {
@@ -677,7 +983,7 @@
         ],
         "operationId": "updateReview",
         "summary": "Update a review",
-        "description": "Send all input fields, including unchanged fields. The original ID and createdAt are preserved; updatedAt is set by the server. Does not create a missing document.",
+        "description": "Requires GitHub sign-in and the X-CSRF-Token returned by GET /auth/me. Send all input fields, including unchanged fields. The original ID, owner, and createdAt are preserved; updatedAt is set by the server. Does not create a missing document.",
         "requestBody": {
           "required": true,
           "content": {
@@ -696,6 +1002,11 @@
             }
           }
         },
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Updated document",
@@ -709,6 +1020,26 @@
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
             "content": {
               "application/json": {
                 "schema": {
@@ -755,13 +1086,38 @@
         ],
         "operationId": "deleteReview",
         "summary": "Delete a review",
-        "description": "Permanently removes this review.",
+        "description": "Requires GitHub sign-in and the X-CSRF-Token returned by GET /auth/me. Permanently removes this review.",
+        "security": [
+          {
+            "csrfToken": []
+          }
+        ],
         "responses": {
           "204": {
             "description": "Deleted successfully; no response body"
           },
           "400": {
             "description": "Invalid path, query, or request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing or invalid X-CSRF-Token header",
             "content": {
               "application/json": {
                 "schema": {
@@ -795,6 +1151,14 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Get the current value from GET /auth/me after opening /auth/github in the same browser."
+      }
+    },
     "schemas": {
       "MovieInput": {
         "type": "object",
@@ -976,6 +1340,12 @@
             "readOnly": true,
             "pattern": "^[a-fA-F0-9]{24}$"
           },
+          "userId": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^[a-fA-F0-9]{24}$",
+            "description": "MongoDB ID of the authenticated owner."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -997,6 +1367,7 @@
           "synopsis",
           "watchStatus",
           "_id",
+          "userId",
           "createdAt",
           "updatedAt"
         ],
@@ -1011,6 +1382,7 @@
           "synopsis": "A family of superheroes returns to action.",
           "watchStatus": "want-to-watch",
           "_id": "507f1f77bcf86cd799439011",
+          "userId": "507f1f77bcf86cd799439012",
           "createdAt": "2026-10-15T12:00:00.000Z",
           "updatedAt": "2026-10-15T12:00:00.000Z"
         }
@@ -1049,6 +1421,12 @@
             "readOnly": true,
             "pattern": "^[a-fA-F0-9]{24}$"
           },
+          "userId": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^[a-fA-F0-9]{24}$",
+            "description": "MongoDB ID of the authenticated owner."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -1068,6 +1446,7 @@
           "watchedOn",
           "containsSpoilers",
           "_id",
+          "userId",
           "createdAt",
           "updatedAt"
         ],
@@ -1080,6 +1459,7 @@
           "watchedOn": "2026-10-15",
           "containsSpoilers": false,
           "_id": "507f1f77bcf86cd799439011",
+          "userId": "507f1f77bcf86cd799439012",
           "createdAt": "2026-10-15T12:00:00.000Z",
           "updatedAt": "2026-10-15T12:00:00.000Z"
         }
@@ -1110,6 +1490,49 @@
                 }
               }
             }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "displayName"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CurrentUser": {
+        "type": "object",
+        "required": [
+          "user",
+          "csrfToken"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "csrfToken": {
+            "type": "string"
           }
         }
       },

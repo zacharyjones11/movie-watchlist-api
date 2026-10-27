@@ -1,14 +1,22 @@
 require('dotenv').config({ quiet: true });
 const { createApp } = require('./app');
 const { connectDatabase } = require('./data/database');
+const { createGithubOAuth } = require('./auth/github');
 
 async function start() {
   const port = Number(process.env.PORT || 8081);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('PORT must be an integer between 1 and 65535.');
   }
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+    throw new Error('SESSION_SECRET must be set to a random value of at least 32 characters.');
+  }
   const { client, db } = await connectDatabase(process.env.MONGODB_URI, process.env.MONGODB_DB_NAME);
-  const server = createApp(db).listen(port, '0.0.0.0', () => {
+  const app = createApp(db, {
+    sessionSecret: process.env.SESSION_SECRET,
+    githubOAuth: createGithubOAuth(process.env)
+  });
+  const server = app.listen(port, '0.0.0.0', () => {
     console.log(`Movie Watchlist API listening on port ${port}. Docs: /api-docs`);
   });
   server.on('error', async () => {
@@ -28,7 +36,7 @@ async function start() {
 
 start().catch((error) => {
   // Configuration messages are safe; database errors can contain credentials.
-  const message = error.message.startsWith('MONGODB_URI and MONGODB_DB_NAME') || error.message.startsWith('PORT must')
+  const message = error.message.startsWith('MONGODB_URI and MONGODB_DB_NAME') || error.message.startsWith('PORT must') || error.message.startsWith('SESSION_SECRET')
     ? error.message
     : 'Could not connect to MongoDB. Check the URI, database permissions, and Atlas network access.';
   console.error(message);

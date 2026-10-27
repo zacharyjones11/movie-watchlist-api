@@ -10,15 +10,19 @@ async function connectDatabase(uri, databaseName) {
     await client.connect();
     const db = client.db(databaseName);
     await db.command({ ping: 1 });
-    // Create both collections in the new database without requiring sample data.
-    for (const name of ['movies', 'reviews']) {
+    // Create the project collections without requiring sample data.
+    for (const name of ['movies', 'reviews', 'users', 'sessions']) {
       try {
         await db.createCollection(name);
       } catch (error) {
         if (error.code !== 48) throw error; // NamespaceExists is safe on restart.
       }
     }
+    await db.collection('users').createIndex({ githubId: 1 }, { unique: true });
     await db.collection('reviews').createIndex({ movieId: 1 });
+    await db.collection('reviews').createIndex({ userId: 1, movieId: 1 });
+    await db.collection('movies').createIndex({ userId: 1 });
+    await db.collection('sessions').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
     return { client, db };
   } catch (error) {
     await client.close();
